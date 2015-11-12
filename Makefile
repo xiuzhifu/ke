@@ -1,10 +1,12 @@
-ke: kiss_queue.o kiss_event.o kiss_man.o 
-	cc kiss_queue.o kiss_event.o kiss_man.o -g -llua -o $@
+ke: kiss_queue.o kiss_event.o kiss_man.o kiss_start.o
+	cc $^ -g -llua -o $@
 kiss_queue.o: kiss_queue.c kiss_queue.h
 	cc -c $< -o $@ -g
 kiss_man.o: kiss_man.c
 	cc -c $< -o $@ -g
 kiss_event.o: kiss_event.c kiss_event.h
+	cc -c $< -o $@ -g
+kiss_start.o: kiss_start.c
 	cc -c $< -o $@ -g
 kissocket.so: lkissocket.o
 	cc -shared $< -llua -o $@
