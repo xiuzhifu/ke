@@ -67,7 +67,6 @@ function ke.newservice(name, ...)
 		inst:init(...)
 		inst.handle = c.new()
 		print(inst.handle)
-		c.callback(inst.handle, ke.dispatch)
 		ke.instance[inst.handle] = inst
 		return inst.handle
 	end
@@ -85,5 +84,8 @@ end
 
 
 function ke.start()
+	print('c.callback(ke.dispatch)')
+	c.callback(ke.dispatch)
 end
+ke.start()
 return ke

@@ -1,11 +1,9 @@
 #include <lua.h>
 #include <lauxlib.h>
 #include <stdio.h>
-#include <lualib.h>
 int 
 kiss_start(lua_State *L, const char * path){
 	const char * bootstrap = "package.path = package.path..';./?.lua' local path = ... local chunk = assert(loadfile('main.lua')) assert(pcall(chunk))";
-	luaL_openlibs(L);
 	int i = lua_gettop(L);
 	int err = luaL_loadstring(L, bootstrap);
 	switch (err) {

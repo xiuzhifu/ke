@@ -48,18 +48,15 @@ kissevent_dispatch(lua_State *L){
 		kiss_mq_pop(Q, &message);
 		struct kissevent_context *kc = kissevent_get(&KE, Q->handle);
 		int i =  lua_gettop(L);
-		int func = lua_rawgeti(L, LUA_REGISTRYINDEX, kc->ref);
-		i = lua_gettop(L);
-		if (func == LUA_TFUNCTION){
-			lua_pushinteger(L, message.source);
-			lua_pushinteger(L, message.session);
-			lua_pushlstring(L, message.data, message.size);
-			lua_pushinteger(L, message.size);
-			int err = lua_pcall(L, 4, 0, 0);
-			if (err) {
-				fprintf(stderr,"error: %s\n",lua_tostring(L,-1));
-				lua_close(L);
-			}
+		lua_getfield(L, LUA_REGISTRYINDEX, "ke");
+		lua_pushinteger(L, message.source);
+		lua_pushinteger(L, message.session);
+		lua_pushlstring(L, message.data, message.size);
+		lua_pushinteger(L, message.size);
+		int err = lua_pcall(L, 4, 0, 0);
+		if (err) {
+			fprintf(stderr,"error: %s\n",lua_tostring(L,-1));
+			lua_close(L);
 		}
 	}
 }
@@ -67,7 +64,7 @@ kissevent_dispatch(lua_State *L){
 static int
 reserve_id(struct kiss_event * ke) {
 	int i;
-	for (i=0; i<ke->size; i++) {
+	for (i=4; i<ke->size; i++) {
 		struct kissevent_context *kc = &ke->slot[i % ke->cap];
 		if (kc->type == SLOT_INVALID) {
 			kc->type = SLOT_RESERVE;
@@ -102,7 +99,7 @@ kissevent_init(){
 	KE.cap = 0;
 }
 
-int
+static int
 lnew(lua_State *L){
 	struct kissevent_context * kc = kissevent_new(&KE);
 	kc->queue = kiss_mq_create(kc->handle);
@@ -110,7 +107,7 @@ lnew(lua_State *L){
 	return 1;
 }
 
-int
+static int
 ldestroy(lua_State *L){
 	uint32_t handle = luaL_checkinteger(L, 1);
 	struct kissevent_context* kc = kissevent_get(&KE, handle);
@@ -121,7 +118,7 @@ ldestroy(lua_State *L){
 	return 0;
 }
 
-int
+static int
 lsend(lua_State *L){
 	int i = lua_gettop(L);
 	uint32_t handle = luaL_checkinteger(L, 1);
@@ -138,14 +135,11 @@ lsend(lua_State *L){
 	return 1;
 }
 
-int 
+static int
 lcallback(lua_State *L){
-	int handle = luaL_checkinteger(L, -2);
-	struct kissevent_context* ke = kissevent_get(&KE, handle);
-	luaL_checktype(L,-1,LUA_TFUNCTION);
-	lua_settop(L,1);
-	ke->ref = luaL_ref(L, LUA_REGISTRYINDEX);
-	lua_rawseti(L, LUA_REGISTRYINDEX,ke->ref);
+	int i = lua_gettop(L);
+	luaL_checktype(L,1,LUA_TFUNCTION);
+	lua_setfield(L, LUA_REGISTRYINDEX, "ke");
 	return 0;
 }
 
@@ -159,6 +153,7 @@ luaopen_kissevent_c(lua_State *L){
 	{ "callback", lcallback },
 	{ NULL, NULL },
 	};
-	luaL_newlib(L, l);
+	luaL_newlibtable(L, l);
+    luaL_setfuncs(L,l,0);
 	return 1;
 }
