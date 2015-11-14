@@ -44,16 +44,22 @@ void
 kissevent_dispatch(lua_State *L){
 	struct message_queue * Q = kiss_globalmq_pop();
 	if(Q){
-		struct kiss_message *message;
-		kiss_mq_pop(Q, message);
+		struct kiss_message message;
+		kiss_mq_pop(Q, &message);
 		struct kissevent_context *kc = kissevent_get(&KE, Q->handle);
+		int i =  lua_gettop(L);
 		int func = lua_rawgeti(L, LUA_REGISTRYINDEX, kc->ref);
+		i = lua_gettop(L);
 		if (func == LUA_TFUNCTION){
-			lua_pushinteger(L, message->source);
-			lua_pushinteger(L, message->session);
-			lua_pushlstring(L, message->data, message->size);
-			lua_pushinteger(L, message->size);
+			lua_pushinteger(L, message.source);
+			lua_pushinteger(L, message.session);
+			lua_pushlstring(L, message.data, message.size);
+			lua_pushinteger(L, message.size);
 			int err = lua_pcall(L, 4, 0, 0);
+			if (err) {
+				fprintf(stderr,"error: %s\n",lua_tostring(L,-1));
+				lua_close(L);
+			}
 		}
 	}
 }
@@ -66,6 +72,7 @@ reserve_id(struct kiss_event * ke) {
 		if (kc->type == SLOT_INVALID) {
 			kc->type = SLOT_RESERVE;
 			kc->handle = i;
+			ke->size--;
 			return i;
 		}
 	}
@@ -82,8 +89,10 @@ kissevent_new(struct kiss_event *ke){
 		memcpy(slot, ke->slot, sizeof(*ke->slot) * ke->size);
 		kiss_free(ke->slot);
 		ke->slot = slot;
+		ke->size = ke->cap;
 	}
 	int handle = reserve_id(ke);
+	assert(handle >= 0);
 	return &ke->slot[handle];
 }
 
@@ -104,34 +113,39 @@ lnew(lua_State *L){
 int
 ldestroy(lua_State *L){
 	uint32_t handle = luaL_checkinteger(L, 1);
-	struct kissevent_context* ke = kissevent_get(&KE, handle);
-	kiss_mq_release(ke->queue);
-	ke->type = SLOT_INVALID;
-	luaL_unref(L, LUA_REGISTRYINDEX, ke->handle);
+	struct kissevent_context* kc = kissevent_get(&KE, handle);
+	kiss_mq_release(kc->queue);
+	kc->type = SLOT_INVALID;
+	KE.size ++;
+	luaL_unref(L, LUA_REGISTRYINDEX, kc->handle);
 	return 0;
 }
 
 int
 lsend(lua_State *L){
-	struct kissevent_context* kc = lua_touserdata(L, 1);
-	struct kiss_message* msg = kiss_malloc(sizeof(*msg));
-	msg->source = kc->handle;
+	int i = lua_gettop(L);
+	uint32_t handle = luaL_checkinteger(L, 1);
+	struct kissevent_context* kc = kissevent_get(&KE, handle);
+	struct kiss_message msg;
+	msg.source = kc->handle;
 	kc->session_id ++;
-	msg->session = kc->session_id;
-	msg->data = (void*)lua_tolstring(L, 2, &msg->size);
-	kiss_mq_push(kc->queue, msg);
+	msg.session = kc->session_id;
+	msg.data = (void*)lua_tolstring(L, 2, &msg.size);
+	i = lua_gettop(L);
+	kiss_mq_push(kc->queue, &msg);
+	lua_pop(L, 2);
 	lua_pushinteger(L, kc->session_id);
 	return 1;
 }
 
 int 
 lcallback(lua_State *L){
-	int handle = luaL_checkinteger(L, 1);
+	int handle = luaL_checkinteger(L, -2);
 	struct kissevent_context* ke = kissevent_get(&KE, handle);
-	luaL_checktype(L,2,LUA_TFUNCTION);
+	luaL_checktype(L,-1,LUA_TFUNCTION);
 	lua_settop(L,1);
 	ke->ref = luaL_ref(L, LUA_REGISTRYINDEX);
-	lua_rawseti(L, LUA_REGISTRYINDEX, ke->ref);
+	lua_rawseti(L, LUA_REGISTRYINDEX,ke->ref);
 	return 0;
 }
 
@@ -145,6 +159,6 @@ luaopen_kissevent_c(lua_State *L){
 	{ "callback", lcallback },
 	{ NULL, NULL },
 	};
-	luaL_newlibtable(L, l);
-	return 0;
+	luaL_newlib(L, l);
+	return 1;
 }

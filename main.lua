@@ -1,5 +1,4 @@
 local ke = require "ke"
-function bootstrap()
-	print "aaaaa"
-end
-bootstrap()
+local simpledb = require "simpledb"
+local db = ke.newservice("SIMPLEDB")
+ke.call(db, 'lua', "anmeng")

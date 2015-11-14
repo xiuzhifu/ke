@@ -7,4 +7,5 @@
 #define KISS_EVENT_H
 void kissevent_dispatch(lua_State *L);
 void kissevent_init();
+int luaopen_kissevent_c(lua_State *L);
 #endif

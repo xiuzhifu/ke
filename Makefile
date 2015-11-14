@@ -1,3 +1,4 @@
+all: ke
 ke: kiss_queue.o kiss_event.o kiss_man.o kiss_start.o
 	cc $^ -g -llua -o $@
 kiss_queue.o: kiss_queue.c kiss_queue.h
