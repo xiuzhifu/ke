@@ -3,7 +3,7 @@
 #include <stdio.h>
 int 
 kiss_start(lua_State *L, const char * path){
-	const char * bootstrap = "package.path = package.path..';./?.lua' local path = ... local chunk = assert(loadfile('main.lua')) assert(pcall(chunk))";
+	const char * bootstrap = "package.path = package.path..';./?.lua' local path = ... local ke = require 'ke' ke.newservice('main')";
 	int i = lua_gettop(L);
 	int err = luaL_loadstring(L, bootstrap);
 	switch (err) {

@@ -15,26 +15,13 @@ function metaservice:name(name)
 end
 
 metaservice.__index = metaservice
+local sleep_co = {}
 
 function yield_call(handle, session)
-	local msg, sz
-	copool[session] = coroutine.create(function()
-	msg, sz = coroutine.yield('CALL', session)
-	end)
-	coroutine.resume(copool[session])
+	copool[session] = coroutine.running()
+	print("yield_call", session, copool[session])
+	local msg, sz = coroutine.yield('CALL', session)
 	return msg, sz
-end
-function ke.call2(name, protoname, ... )
-	local p = proto[protoname]
-	local handle = name
-	if type(handle) == "string" then handle = ke.name[handle] end
-	local inst = ke.instance[handle]
-	assert(inst)
-	local session = c.send(inst.handle, p.pack(...))
-	if session == nil then 
-		error("call to invalid address " .. name)
-	end
-	return p.unpack(yield_call(handle, session))
 end
 
 function ke.call(name, protoname, ... )
@@ -52,40 +39,41 @@ function ke.send(name, ... )
 	
 end
 
-function ke.registerservice(service, name)
-	assert(service)
-	assert(name)
-	assert(ke.service[name] == nil)
-	service.__index = service
-	setmetatable(service, metaservice)	
-	ke.service[name] = service
-end
-
 function ke.newservice(name, ...)
-	if ke.service[name] then
-		local inst = setmetatable({}, ke.service[name])
-		inst:init(...)
-		inst.handle = c.new()
-		print(inst.handle)
-		ke.instance[inst.handle] = inst
-		return inst.handle
+	local chunk = assert(loadfile('./service/'..name..'.lua'))
+	local ret, metatable = pcall(chunk)
+	if not ret then
+		print(metatable)
+		return 
 	end
+	metatable.__index = metatable
+	local inst = setmetatable({}, metatable)
+	inst.handle = c.new()
+	if inst.init then 
+		ke.start(-inst.handle, inst.init, inst)
+	end
+	ke.instance[inst.handle] = inst
+	return inst.handle
+end
+ 
+function ke.dispatch(source, session, msg, sz)
+	local inst = ke.instance[source]
+	ke.start(inst.handle, function() 
+		local co = copool[session]
+		copool[session] = nil
+		local msg1, sz1 = inst:receive(source, session, msg, sz)
+		print("dis", co, source, session,msg1, sz1)
+		if co then coroutine.resume(co, msg1, sz1) end
+	end)
 end
 
-function ke.dispatch(...)
---inst.receive
---session, msg, sz
-	print(...)
-	co = copool[session]
-	print("dispatch", session)
-	if co then coroutine.resume(co, msg, sz) end
+function ke.start(session, mainco, ...)
+	local p = ...
+	copool[session] = coroutine.create(function()
+		mainco(p)
+	end)
+	print('ke.start',session, copool[session])
+	coroutine.resume(copool[session])
 end
-
-
-
-function ke.start()
-	print('c.callback(ke.dispatch)')
-	c.callback(ke.dispatch)
-end
-ke.start()
+c.callback(ke.dispatch)
 return ke

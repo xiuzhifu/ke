@@ -33,6 +33,7 @@ struct kiss_event {
 };
 
 struct kiss_event KE;
+static int sessionid = 0;
 
 static struct kissevent_context*
 kissevent_get(struct kiss_event *ke, uint32_t id){
@@ -64,7 +65,7 @@ kissevent_dispatch(lua_State *L){
 static int
 reserve_id(struct kiss_event * ke) {
 	int i;
-	for (i=4; i<ke->size; i++) {
+	for (i=1; i<ke->size; i++) {
 		struct kissevent_context *kc = &ke->slot[i % ke->cap];
 		if (kc->type == SLOT_INVALID) {
 			kc->type = SLOT_RESERVE;
@@ -125,13 +126,12 @@ lsend(lua_State *L){
 	struct kissevent_context* kc = kissevent_get(&KE, handle);
 	struct kiss_message msg;
 	msg.source = kc->handle;
-	kc->session_id ++;
-	msg.session = kc->session_id;
+	msg.session = ++ sessionid;
 	msg.data = (void*)lua_tolstring(L, 2, &msg.size);
 	i = lua_gettop(L);
 	kiss_mq_push(kc->queue, &msg);
 	lua_pop(L, 2);
-	lua_pushinteger(L, kc->session_id);
+	lua_pushinteger(L, msg.session);
 	return 1;
 }
 
